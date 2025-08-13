@@ -4,22 +4,21 @@ import com.example.socialmedx.dto.ApiResponse;
 import com.example.socialmedx.dto.auth.LoginRequest;
 import com.example.socialmedx.dto.auth.RegisterRequest;
 import com.example.socialmedx.entity.User;
+import com.example.socialmedx.entity.UserToken;
 import com.example.socialmedx.repository.UserRepository;
+import com.example.socialmedx.repository.UserTokenRepository;
 import com.example.socialmedx.security.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -28,17 +27,21 @@ import java.util.Optional;
 @RequestMapping("/auth")
 public class AuthController {
 
-    @Autowired
-    private AuthenticationManager authenticationManager;
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private UserTokenRepository userTokenRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
     private JwtUtil jwtUtil;
+
+    @Value("${jwt.expiration}")
+    private long jwtExpiration;
 
 
 
@@ -68,25 +71,38 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login (@RequestBody LoginRequest request){
-        try {
-            Authentication auth = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(
-                            request.getUsername(),
-                            request.getPassword()
-                    )
-            );
 
-            SecurityContextHolder.getContext().setAuthentication(auth);
+        Date now = new Date();
+        Optional<User> userOpt = userRepository.findByUsername(request.getUsername());
+        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
+        Map<String, String> responseToken = new HashMap<>();
 
-            String jwt = jwtUtil.generateToken(request.getUsername());
-
-            Map<String,String> tokenResponse = new HashMap<>();
-            tokenResponse.put("token", jwt);
-
-            return ResponseEntity.ok(ApiResponse.success("Login successfully", tokenResponse));
-
-        } catch (BadCredentialsException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.error("Invalid Credentials", null));
+        if(!userOpt.isPresent() || !encoder.matches(request.getPassword(), userOpt.get().getPassword())){
+            return ResponseEntity.ok(ApiResponse.error("Invalid Credential", null));
         }
+
+        Long userId = userOpt.get().getId();
+        Optional<UserToken> userTokenOpt = userTokenRepository.findByUser_IdAndRevokeFalseAndExpiredAtAfter(userId, now);
+
+        if(userTokenOpt.isPresent()){
+            responseToken.put("token", userTokenOpt.get().getToken());
+            return ResponseEntity.ok(ApiResponse.success("User login successfully", responseToken));
+        }
+
+        UserToken userToken = new UserToken();
+        String token = jwtUtil.generateToken(request.getUsername());
+        responseToken.put("token", token);
+
+        userToken.setToken(token);
+        userToken.setCreatedAt(now);
+        userToken.setExpiredAt(new Date(now.getTime() + jwtExpiration));
+        userToken.setRevoke(false);
+        userToken.setUser(userOpt.get());
+
+        userTokenRepository.save(userToken);
+
+
+        return ResponseEntity.ok(ApiResponse.success("User login successfully", responseToken));
+
     }
 }
