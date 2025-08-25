@@ -82,9 +82,20 @@ public class AuthController {
         }
 
         Long userId = userOpt.get().getId();
-        Optional<UserToken> userTokenOpt = userTokenRepository.findByUser_IdAndRevokeFalseAndExpiredAtAfter(userId, now);
+//        Optional<UserToken> userTokenOpt = userTokenRepository.findByUser_IdAndRevokeFalseAndExpiredAtAfter(userId, now);
+
+        Optional<UserToken> userTokenOpt = userTokenRepository.findByUser_Id(userId);
 
         if(userTokenOpt.isPresent()){
+            if (userTokenOpt.get().isRevoke()){
+                return ResponseEntity.ok(ApiResponse.error("User is not active", null));
+            }
+
+            if(userTokenOpt.get().getExpiredAt().before(now)){
+                userTokenRepository.delete(userTokenOpt.get());
+
+            }
+
             responseToken.put("token", userTokenOpt.get().getToken());
             return ResponseEntity.ok(ApiResponse.success("User login successfully", responseToken));
         }
