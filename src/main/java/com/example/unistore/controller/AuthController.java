@@ -3,9 +3,11 @@ package com.example.unistore.controller;
 import com.example.unistore.dto.ApiResponse;
 import com.example.unistore.dto.auth.LoginRequest;
 import com.example.unistore.dto.auth.RegisterRequest;
+import com.example.unistore.entity.Cart;
 import com.example.unistore.entity.Role;
 import com.example.unistore.entity.User;
 import com.example.unistore.entity.UserToken;
+import com.example.unistore.repository.CartRepository;
 import com.example.unistore.repository.RoleRepository;
 import com.example.unistore.repository.UserRepository;
 import com.example.unistore.repository.UserTokenRepository;
@@ -40,6 +42,9 @@ public class AuthController {
     private RoleRepository roleRepository;
 
     @Autowired
+    private CartRepository cartRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -63,6 +68,8 @@ public class AuthController {
         }
 
         User newUser = new User();
+        Cart newCart = new Cart();
+
         Optional<Role> userRole = roleRepository.findByName("user");
 
         if (!userRole.isPresent()) {
@@ -75,6 +82,12 @@ public class AuthController {
         newUser.setPassword(passwordEncoder.encode(request.getPassword()));
 
         userRepository.save(newUser);
+
+        newCart.setUser(newUser);
+        newCart.setCreatedAt(new Date());
+        newCart.setUpdatedAt(new Date());
+
+        cartRepository.save(newCart);
 
         return ResponseEntity.ok(ApiResponse.success("User registered successfully", null));
 

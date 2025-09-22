@@ -12,7 +12,7 @@ public class CartItem {
 
     @ManyToOne
     @JoinColumn(name = "cart_id", nullable = false)
-    private Cart cartId;
+    private Cart cart;
 
     @ManyToOne
     @JoinColumn(name = "product_id", nullable = false)
@@ -31,12 +31,12 @@ public class CartItem {
         this.id = id;
     }
 
-    public Cart getCartId() {
-        return cartId;
+    public Cart getCart() {
+        return cart;
     }
 
-    public void setCartId(Cart cartId) {
-        this.cartId = cartId;
+    public void setCart(Cart cart) {
+        this.cart = cart;
     }
 
     public Products getProductId() {
